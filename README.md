@@ -8,7 +8,7 @@ Flutter UI, [libgit2](https://libgit2.org/) engine, wired together over `dart:ff
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.22%2B-02569B?logo=flutter&logoColor=white)
 ![Dart](https://img.shields.io/badge/Dart-3.12%2B-0175C2?logo=dart&logoColor=white)
-![libgit2](https://img.shields.io/badge/libgit2-1.7.2-F05033?logo=git&logoColor=white)
+![libgit2](https://img.shields.io/badge/libgit2-1.9.6-F05033?logo=git&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS-3DDC84)
 ![Lints](https://img.shields.io/badge/lints-very__good__analysis-6E40C9)
 ![Tests](https://img.shields.io/badge/tests-61%20passing-2EA44F)

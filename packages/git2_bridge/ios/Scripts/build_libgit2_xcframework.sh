@@ -26,7 +26,11 @@ FRAMEWORKS_DIR="$IOS_DIR/Frameworks"
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-LIBGIT2_TAG="v1.7.2"
+# Keep in sync with native/CMakeLists.txt's LIBGIT2_VERSION/MBEDTLS_VERSION.
+# libgit2 v1.7.2 (the plan's originally-specified version) still
+# #includes <mbedtls/config.h>, a header mbedTLS removed in 3.x — it
+# only supports mbedTLS 2.x. v1.9.6 dropped that include.
+LIBGIT2_TAG="v1.9.6"
 MBEDTLS_TAG="v3.6.2"
 # github.com/leetal/ios-cmake — the standard CMake toolchain file for
 # cross-compiling to iOS device/simulator, used here instead of
@@ -41,7 +45,11 @@ curl -fsSL "https://github.com/leetal/ios-cmake/archive/refs/tags/${IOS_CMAKE_TA
 TOOLCHAIN="$WORK_DIR/ios-cmake-${IOS_CMAKE_TAG#v}/ios.toolchain.cmake"
 
 echo "==> Fetching mbedTLS ($MBEDTLS_TAG)"
+# mbedTLS 3.6.2 split its shared CMake/build-script helpers into a
+# "framework" submodule; its own CMakeLists.txt won't even configure
+# without it (see native/CMakeLists.txt for the same issue on Android).
 git clone --depth 1 --branch "$MBEDTLS_TAG" https://github.com/Mbed-TLS/mbedtls.git "$WORK_DIR/mbedtls"
+git -C "$WORK_DIR/mbedtls" submodule update --init framework
 
 echo "==> Fetching libgit2 ($LIBGIT2_TAG)"
 git clone --depth 1 --branch "$LIBGIT2_TAG" https://github.com/libgit2/libgit2.git "$WORK_DIR/libgit2"
@@ -69,13 +77,28 @@ build_one mbedtls "$WORK_DIR/mbedtls" SIMULATORARM64 "-DENABLE_TESTING=OFF -DENA
 echo "==> Building mbedTLS (simulator x86_64)"
 build_one mbedtls "$WORK_DIR/mbedtls" SIMULATOR64 "-DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF"
 
-LIBGIT2_ARGS="-DUSE_SSH=OFF -DUSE_HTTPS=mbedTLS -DUSE_BUNDLED_ZLIB=ON -DREGEX_BACKEND=builtin -DTHREADSAFE=ON -DBUILD_CLI=OFF -DBUILD_TESTS=OFF -DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF"
+# libgit2's cmake/FindmbedTLS.cmake (still true as of v1.9.6) is a
+# classic find_path()/find_library() Find-module, not a modern
+# find_package(... CONFIG) consumer — it has no idea what
+# `-Dmbedtls_DIR=...` even means. It looks for these exact cache
+# variables (see native/CMakeLists.txt for the same fix, verified
+# there against a full local build; unlike that one, this iOS path
+# can't be tested in this sandbox — no Xcode/macOS anywhere here).
+mbedtls_cmake_args() {
+  local platform="$1" mbedtls_build="$WORK_DIR/build-mbedtls-$platform"
+  echo "-DMBEDTLS_INCLUDE_DIR=$WORK_DIR/mbedtls/include" \
+       "-DMBEDTLS_LIBRARY=$mbedtls_build/library/libmbedtls.a" \
+       "-DMBEDX509_LIBRARY=$mbedtls_build/library/libmbedx509.a" \
+       "-DMBEDCRYPTO_LIBRARY=$mbedtls_build/library/libmbedcrypto.a"
+}
+
+LIBGIT2_ARGS="-DUSE_SSH=OFF -DUSE_HTTPS=mbedTLS -DUSE_NTLMCLIENT=OFF -DUSE_BUNDLED_ZLIB=ON -DREGEX_BACKEND=builtin -DTHREADSAFE=ON -DBUILD_CLI=OFF -DBUILD_TESTS=OFF -DENABLE_PROGRAMS=OFF -DENABLE_TESTING=OFF"
 echo "==> Building libgit2 (device)"
-build_one libgit2 "$WORK_DIR/libgit2" OS64 "$LIBGIT2_ARGS -Dmbedtls_DIR=$WORK_DIR/build-mbedtls-OS64"
+build_one libgit2 "$WORK_DIR/libgit2" OS64 "$LIBGIT2_ARGS $(mbedtls_cmake_args OS64)"
 echo "==> Building libgit2 (simulator arm64)"
-build_one libgit2 "$WORK_DIR/libgit2" SIMULATORARM64 "$LIBGIT2_ARGS -Dmbedtls_DIR=$WORK_DIR/build-mbedtls-SIMULATORARM64"
+build_one libgit2 "$WORK_DIR/libgit2" SIMULATORARM64 "$LIBGIT2_ARGS $(mbedtls_cmake_args SIMULATORARM64)"
 echo "==> Building libgit2 (simulator x86_64)"
-build_one libgit2 "$WORK_DIR/libgit2" SIMULATOR64 "$LIBGIT2_ARGS -Dmbedtls_DIR=$WORK_DIR/build-mbedtls-SIMULATOR64"
+build_one libgit2 "$WORK_DIR/libgit2" SIMULATOR64 "$LIBGIT2_ARGS $(mbedtls_cmake_args SIMULATOR64)"
 
 # mbedTLS produces three static libs (libmbedtls, libmbedx509,
 # libmbedcrypto); merge them into one per platform slice so we only
