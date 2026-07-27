@@ -37,6 +37,16 @@ if(GB_USE_SYSTEM_LIBGIT2)
 else()
   include(FetchContent)
 
+  # git_bridge is a SHARED library statically linking libgit2 + mbedTLS
+  # into itself, so every object in that chain must be position-
+  # independent. Android's NDK toolchain forces -fPIC project-wide
+  # regardless, but a plain Linux host build (this sandbox's
+  # verification path) defaults static libraries to non-PIC, which
+  # fails at final link with "relocation ... can not be used when
+  # making a shared object; recompile with -fPIC". Setting this before
+  # the FetchContent calls below applies it to their targets too.
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
   # v1.7.2 (the plan's originally-specified version) still #includes
   # <mbedtls/config.h>, a header mbedTLS removed in 3.x — it only
   # supports mbedTLS 2.x. v1.9.6 (latest as of this writing) dropped
@@ -98,23 +108,26 @@ else()
 
   # libgit2's own CMake target is named "libgit2package" — "git2" is
   # only its *output filename* (see LIBGIT2_FILENAME in
-  # src/libgit2/CMakeLists.txt). target_link_libraries(... git2) still
-  # "worked" at configure time because CMake falls back to treating an
-  # unrecognized name as a raw linker flag (-lgit2) rather than
-  # erroring — but that means it carries none of the target's usual
-  # include-directory propagation, hence the explicit include path
-  # below (libgit2package's own target_include_directories call is
-  # PRIVATE, so it doesn't propagate the public header either way).
+  # src/libgit2/CMakeLists.txt). target_link_libraries(... git2)
+  # "configures" fine either way, because CMake falls back to treating
+  # an unrecognized name as a raw linker flag (-lgit2) instead of
+  # erroring — but that means no include-directory propagation (hence
+  # the explicit include path below regardless: libgit2package's own
+  # target_include_directories call is PRIVATE, so it doesn't
+  # propagate the public header either way) and, worse, no guaranteed
+  # -L search path to the .a file's actual location. That silently
+  # "worked" building on a Linux host (ld apparently found it via
+  # search-path luck) but broke on Android: `ld.lld: error: unable to
+  # find library -lgit2`. Reference the real target instead.
   target_include_directories(git_bridge PRIVATE ${libgit2_SOURCE_DIR}/include)
-  target_link_libraries(git_bridge PRIVATE git2)
+  target_link_libraries(git_bridge PRIVATE libgit2package)
   # libgit2 links mbedTLS via raw -L/-l flags (derived from the paths
   # above), not a CMake target reference, so Ninja has no inherent
   # build-order edge forcing mbedtls's .a files to exist before
-  # libgit2package links against them — add one explicitly. (Also
-  # needed for git_bridge -> libgit2package itself, since that link is
-  # likewise a raw -lgit2 flag, not a target reference.)
+  # libgit2package links against them — add one explicitly. (Not
+  # needed for git_bridge -> libgit2package itself now that it's a
+  # real target reference; CMake infers that ordering automatically.)
   add_dependencies(libgit2package mbedtls mbedx509 mbedcrypto)
-  add_dependencies(git_bridge libgit2package)
 endif()
 
 if(ANDROID)
