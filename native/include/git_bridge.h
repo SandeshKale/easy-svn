@@ -87,6 +87,14 @@ int gb_pull(const char* path, const char* token, gb_progress_cb on_progress,
 int gb_push(const char* path, const char* token, gb_progress_cb on_progress,
             void* user_data);
 
+// Initializes a new, non-bare repository at `path` (which must already
+// exist and may contain files — e.g. content just extracted from a
+// zip) with an initial branch named `main` and no commits (unborn
+// HEAD). Used for importing a plain (non-git) folder/zip as a new
+// local repository. Returns GB_ERROR_EXISTS if `path` is already a
+// git repository.
+int gb_init(const char* path);
+
 // ---------------------------------------------------------------------
 // Local operations
 // ---------------------------------------------------------------------

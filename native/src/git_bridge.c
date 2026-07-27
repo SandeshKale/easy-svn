@@ -392,6 +392,23 @@ cleanup:
 }
 
 // ---------------------------------------------------------------------
+// gb_init
+// ---------------------------------------------------------------------
+
+int gb_init(const char* path) {
+  if (gb_is_repository(path)) return GB_ERROR_EXISTS;
+
+  git_repository_init_options opts;
+  git_repository_init_options_init(&opts, GIT_REPOSITORY_INIT_OPTIONS_VERSION);
+  opts.initial_head = "main";
+
+  git_repository* repo = NULL;
+  int rc = git_repository_init_ext(&repo, path, &opts);
+  if (repo) git_repository_free(repo);
+  return gb_map_git_error(rc);
+}
+
+// ---------------------------------------------------------------------
 // gb_stage / gb_unstage
 // ---------------------------------------------------------------------
 

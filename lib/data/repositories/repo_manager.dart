@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:git2_bridge/git2_bridge.dart';
 import 'package:path/path.dart' as p;
@@ -23,6 +24,58 @@ String repoNameFromUrl(String url) {
   name = name.split('/').last;
   if (name.endsWith('.git')) name = name.substring(0, name.length - 4);
   return name.isEmpty ? 'repository' : name;
+}
+
+/// Derives a filesystem-safe local directory name from a zip file's
+/// path, e.g. `/downloads/my-repo.zip` -> `my-repo`.
+String repoNameFromZipPath(String zipPath) {
+  final name = p.basenameWithoutExtension(zipPath);
+  return name.isEmpty ? 'imported-repo' : name;
+}
+
+/// Decodes a zip archive from [bytes].
+///
+/// If every entry lives under one common top-level directory — as
+/// produced by GitHub's "Download ZIP" and most "zip a folder" tools —
+/// that wrapper directory is stripped so the archive's real root lands
+/// at the top level instead of one level deeper. [exclude], if given,
+/// is called with each (already-unwrapped, `/`-separated) entry path
+/// and drops it from the result when it returns true.
+Archive decodeZipArchive(
+  List<int> bytes, {
+  bool Function(String path)? exclude,
+}) {
+  final decoded = ZipDecoder().decodeBytes(bytes);
+
+  final topLevelDirs = <String>{};
+  var hasRootEntry = false;
+  for (final entry in decoded) {
+    final normalized = entry.name.replaceAll(r'\', '/');
+    final firstSlash = normalized.indexOf('/');
+    if (firstSlash <= 0) {
+      hasRootEntry = true;
+      break;
+    }
+    topLevelDirs.add(normalized.substring(0, firstSlash));
+  }
+  final stripPrefix = (!hasRootEntry && topLevelDirs.length == 1)
+      ? '${topLevelDirs.first}/'
+      : null;
+
+  // Rebuilt into a fresh Archive (rather than renaming/removing entries
+  // of `decoded` in place) because Archive.removeFile looks entries up
+  // by name in an internal map that's keyed by their pre-rename names —
+  // mutating `entry.name` first would make later removals silently
+  // no-op.
+  final result = Archive();
+  for (final entry in decoded) {
+    var name = entry.name.replaceAll(r'\', '/');
+    if (stripPrefix != null) name = name.substring(stripPrefix.length);
+    if (exclude != null && exclude(name)) continue;
+    entry.name = name;
+    result.addFile(entry);
+  }
+  return result;
 }
 
 /// Orchestrates clone/pull/push/commit against both the native git
@@ -75,6 +128,69 @@ class RepoManager {
           ),
         );
     return (_db.select(_db.repos)..where((t) => t.id.equals(id))).getSingle();
+  }
+
+  /// Extracts [zipPath] as a brand-new repo under [reposRootDirectory]
+  /// (scenario: importing a standalone zip, which may or may not
+  /// already contain a `.git` folder, with no prior clone required).
+  /// If the zip's contents already form a git repository, that history
+  /// is kept as-is; otherwise [Git2Bridge.init] creates one so the
+  /// import lands with an unborn HEAD ready for an initial commit.
+  Future<Repo> importZipAsNewRepo(String zipPath) async {
+    final root = await reposRootDirectory();
+    final baseName = repoNameFromZipPath(zipPath);
+    var localPath = p.join(root.path, baseName);
+    var suffix = 1;
+    while (Directory(localPath).existsSync()) {
+      suffix++;
+      localPath = p.join(root.path, '$baseName-$suffix');
+    }
+
+    await _extractZip(zipPath, localPath);
+
+    if (!await Git2Bridge.isRepository(localPath)) {
+      await Git2Bridge.init(localPath);
+    }
+
+    final head = await Git2Bridge.getHeadInfo(localPath);
+    final id = await _db
+        .into(_db.repos)
+        .insert(
+          ReposCompanion.insert(
+            name: baseName,
+            localPath: localPath,
+            remoteUrl: '',
+            defaultBranch: head != null
+                ? Value(head.branch)
+                : const Value('main'),
+            lastSyncedAt: Value(DateTime.now()),
+          ),
+        );
+    return (_db.select(_db.repos)..where((t) => t.id.equals(id))).getSingle();
+  }
+
+  /// Reconciles [zipPath] into [repo]'s existing working directory
+  /// (scenario: applying a snapshot zip on top of an already-cloned
+  /// repo). Files present in the zip overwrite/add their working-tree
+  /// counterparts; anything under `.git` is never touched. The caller
+  /// is expected to show the resulting `status()` diff so the user can
+  /// selectively stage and commit only what actually changed.
+  Future<void> importZipIntoRepo(Repo repo, String zipPath) => _extractZip(
+    zipPath,
+    repo.localPath,
+    exclude: (name) => name == '.git' || name.startsWith('.git/'),
+  );
+
+  /// Decodes the zip at [zipPath] (see [decodeZipArchive]) and extracts
+  /// it into [outputPath].
+  Future<void> _extractZip(
+    String zipPath,
+    String outputPath, {
+    bool Function(String normalizedName)? exclude,
+  }) async {
+    final bytes = await File(zipPath).readAsBytes();
+    final archive = decodeZipArchive(bytes, exclude: exclude);
+    await extractArchiveToDisk(archive, outputPath);
   }
 
   Future<void> pull({

@@ -202,6 +202,22 @@ abstract final class Git2Bridge {
     });
   });
 
+  /// Initializes a new, non-bare repository at [path] (which must
+  /// already exist, and may already contain files — e.g. content just
+  /// extracted from a zip) with an initial branch named `main` and no
+  /// commits (`gb_init`). Throws [GitBridgeException] with
+  /// [GbErrorCode.exists] if [path] is already a git repository.
+  static Future<void> init(String path) => Isolate.run(() {
+    final bindings = loadGit2Bridge();
+    final pathPtr = path.toNativeUtf8(allocator: calloc);
+    try {
+      final rc = bindings.gb_init(pathPtr.cast());
+      throwIfError(rc, _lastErrorMessage(bindings));
+    } finally {
+      calloc.free(pathPtr);
+    }
+  });
+
   /// Adds [filePath] (relative to the repo root) to the index
   /// (`gb_stage`).
   static Future<void> stage({

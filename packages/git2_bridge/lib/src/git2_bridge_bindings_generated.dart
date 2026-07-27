@@ -36,7 +36,14 @@ class Git2BridgeBindings {
     gb_progress_cb on_progress,
     ffi.Pointer<ffi.Void> user_data,
   ) {
-    return _gb_clone(url, path, token, shallow, on_progress, user_data);
+    return _gb_clone(
+      url,
+      path,
+      token,
+      shallow,
+      on_progress,
+      user_data,
+    );
   }
 
   late final _gb_clonePtr =
@@ -74,7 +81,12 @@ class Git2BridgeBindings {
     gb_progress_cb on_progress,
     ffi.Pointer<ffi.Void> user_data,
   ) {
-    return _gb_pull(path, token, on_progress, user_data);
+    return _gb_pull(
+      path,
+      token,
+      on_progress,
+      user_data,
+    );
   }
 
   late final _gb_pullPtr =
@@ -106,7 +118,12 @@ class Git2BridgeBindings {
     gb_progress_cb on_progress,
     ffi.Pointer<ffi.Void> user_data,
   ) {
-    return _gb_push(path, token, on_progress, user_data);
+    return _gb_push(
+      path,
+      token,
+      on_progress,
+      user_data,
+    );
   }
 
   late final _gb_pushPtr =
@@ -130,12 +147,36 @@ class Git2BridgeBindings {
         )
       >();
 
+  /// Initializes a new, non-bare repository at `path` (which must already
+  /// exist and may contain files — e.g. content just extracted from a
+  /// zip) with an initial branch named `main` and no commits (unborn
+  /// HEAD). Used for importing a plain (non-git) folder/zip as a new
+  /// local repository. Returns GB_ERROR_EXISTS if `path` is already a
+  /// git repository.
+  int gb_init(
+    ffi.Pointer<ffi.Char> path,
+  ) {
+    return _gb_init(
+      path,
+    );
+  }
+
+  late final _gb_initPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Pointer<ffi.Char>)>>(
+        'gb_init',
+      );
+  late final _gb_init = _gb_initPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Char>)>();
+
   /// Adds `file_path` (relative to repo root) to the index.
   int gb_stage(
     ffi.Pointer<ffi.Char> repo_path,
     ffi.Pointer<ffi.Char> file_path,
   ) {
-    return _gb_stage(repo_path, file_path);
+    return _gb_stage(
+      repo_path,
+      file_path,
+    );
   }
 
   late final _gb_stagePtr =
@@ -153,7 +194,10 @@ class Git2BridgeBindings {
     ffi.Pointer<ffi.Char> repo_path,
     ffi.Pointer<ffi.Char> file_path,
   ) {
-    return _gb_unstage(repo_path, file_path);
+    return _gb_unstage(
+      repo_path,
+      file_path,
+    );
   }
 
   late final _gb_unstagePtr =
@@ -173,7 +217,12 @@ class Git2BridgeBindings {
     ffi.Pointer<ffi.Char> author_name,
     ffi.Pointer<ffi.Char> author_email,
   ) {
-    return _gb_commit(repo_path, message, author_name, author_email);
+    return _gb_commit(
+      repo_path,
+      message,
+      author_name,
+      author_email,
+    );
   }
 
   late final _gb_commitPtr =
@@ -205,7 +254,10 @@ class Git2BridgeBindings {
     ffi.Pointer<ffi.Char> repo_path,
     ffi.Pointer<ffi.Pointer<ffi.Char>> json_output,
   ) {
-    return _gb_get_status(repo_path, json_output);
+    return _gb_get_status(
+      repo_path,
+      json_output,
+    );
   }
 
   late final _gb_get_statusPtr =
@@ -232,7 +284,11 @@ class Git2BridgeBindings {
     ffi.Pointer<ffi.Char> rel_path,
     ffi.Pointer<ffi.Pointer<ffi.Char>> json_output,
   ) {
-    return _gb_get_file_tree(repo_path, rel_path, json_output);
+    return _gb_get_file_tree(
+      repo_path,
+      rel_path,
+      json_output,
+    );
   }
 
   late final _gb_get_file_treePtr =
@@ -256,8 +312,12 @@ class Git2BridgeBindings {
 
   /// Returns 1 if `path` is a git repository (has a .git directory), 0
   /// otherwise. Does not allocate.
-  int gb_is_repository(ffi.Pointer<ffi.Char> path) {
-    return _gb_is_repository(path);
+  int gb_is_repository(
+    ffi.Pointer<ffi.Char> path,
+  ) {
+    return _gb_is_repository(
+      path,
+    );
   }
 
   late final _gb_is_repositoryPtr =
@@ -276,7 +336,10 @@ class Git2BridgeBindings {
     ffi.Pointer<ffi.Char> repo_path,
     ffi.Pointer<ffi.Pointer<ffi.Char>> json_output,
   ) {
-    return _gb_get_head_info(repo_path, json_output);
+    return _gb_get_head_info(
+      repo_path,
+      json_output,
+    );
   }
 
   late final _gb_get_head_infoPtr =
@@ -300,7 +363,10 @@ class Git2BridgeBindings {
     ffi.Pointer<ffi.Char> repo_path,
     ffi.Pointer<ffi.Int> out_count,
   ) {
-    return _gb_get_unpushed_count(repo_path, out_count);
+    return _gb_get_unpushed_count(
+      repo_path,
+      out_count,
+    );
   }
 
   late final _gb_get_unpushed_countPtr =
@@ -350,8 +416,12 @@ class Git2BridgeBindings {
 
   /// Frees a string previously returned by this API via an output
   /// parameter (gb_get_status, gb_get_file_tree, gb_get_head_info).
-  void gb_free_string(ffi.Pointer<ffi.Char> str) {
-    return _gb_free_string(str);
+  void gb_free_string(
+    ffi.Pointer<ffi.Char> str,
+  ) {
+    return _gb_free_string(
+      str,
+    );
   }
 
   late final _gb_free_stringPtr =
@@ -363,8 +433,12 @@ class Git2BridgeBindings {
 
   /// Frees a gb_progress instance delivered to a gb_progress_cb. See the
   /// ownership note on gb_progress above.
-  void gb_free_progress(ffi.Pointer<gb_progress> progress) {
-    return _gb_free_progress(progress);
+  void gb_free_progress(
+    ffi.Pointer<gb_progress> progress,
+  ) {
+    return _gb_free_progress(
+      progress,
+    );
   }
 
   late final _gb_free_progressPtr =

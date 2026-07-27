@@ -129,6 +129,44 @@ int main(void) {
     gb_free_string(json);
   }
 
+  // gb_init: importing a plain folder (e.g. extracted from a zip)
+  // with no prior git history as a new local repository.
+  const char* init_path = "/tmp/gb_smoke_init";
+  snprintf(cmd, sizeof(cmd), "rm -rf %s && mkdir -p %s", init_path, init_path);
+  system(cmd);
+  snprintf(cmd, sizeof(cmd), "echo hello > %s/README.md", init_path);
+  system(cmd);
+
+  CHECK(gb_is_repository(init_path) == 0, "plain folder is not a repository before gb_init");
+  rc = gb_init(init_path);
+  CHECK(rc == GB_OK, "gb_init on a plain folder");
+  CHECK(gb_is_repository(init_path) == 1, "gb_is_repository true after gb_init");
+  CHECK(gb_init(init_path) == GB_ERROR_EXISTS, "gb_init on an already-initialized repo returns GB_ERROR_EXISTS");
+
+  rc = gb_get_head_info(init_path, &json);
+  CHECK(rc == GB_ERROR_UNBORN_HEAD, "gb_get_head_info on a fresh gb_init repo reports unborn HEAD");
+
+  rc = gb_get_status(init_path, &json);
+  CHECK(rc == GB_OK && json != NULL, "gb_get_status on freshly-init'd repo");
+  if (json) {
+    printf("  status: %s\n", json);
+    CHECK(strstr(json, "README.md") != NULL, "status shows README.md as untracked");
+    gb_free_string(json);
+  }
+
+  rc = gb_stage(init_path, "README.md");
+  CHECK(rc == GB_OK, "gb_stage on freshly-init'd repo");
+  rc = gb_commit(init_path, "Initial import", "Test User", "test@example.com");
+  CHECK(rc == GB_OK, "gb_commit the first commit on a gb_init'd repo");
+
+  rc = gb_get_head_info(init_path, &json);
+  CHECK(rc == GB_OK && json != NULL, "gb_get_head_info after first commit");
+  if (json) {
+    printf("  head info: %s\n", json);
+    CHECK(strstr(json, "\"branch\":\"main\"") != NULL, "gb_init'd repo's first commit lands on branch main");
+    gb_free_string(json);
+  }
+
   gb_global_shutdown();
 
   printf("\n%s (%d failures)\n", failures == 0 ? "ALL PASS" : "SOME FAILED", failures);

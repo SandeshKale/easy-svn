@@ -107,6 +107,53 @@ Future<void> main() async {
     );
   }
 
+  // Git2Bridge.init — importing a plain (non-git) folder as a new
+  // local repository (the zip-import feature's "standalone repo"
+  // path).
+  final initPath = '/tmp/dart_gb_init';
+  final initDir = Directory(initPath);
+  if (initDir.existsSync()) initDir.deleteSync(recursive: true);
+  initDir.createSync(recursive: true);
+  File('$initPath/README.md').writeAsStringSync('hello\n');
+
+  check(
+    !await Git2Bridge.isRepository(initPath),
+    'plain folder is not a repository yet',
+  );
+  await Git2Bridge.init(initPath);
+  check(
+    await Git2Bridge.isRepository(initPath),
+    'isRepository true after init',
+  );
+
+  try {
+    await Git2Bridge.init(initPath);
+    check(false, 'init on an already-initialized repo should throw');
+  } on GitBridgeException catch (e) {
+    check(
+      e.errorCode == GbErrorCode.exists,
+      'init on existing repo throws GbErrorCode.exists',
+    );
+  }
+
+  final initStatus = await Git2Bridge.getStatus(initPath);
+  check(
+    initStatus.any((e) => e.path == 'README.md' && !e.staged),
+    "freshly-init'd repo shows README.md as untracked",
+  );
+  await Git2Bridge.stage(repoPath: initPath, filePath: 'README.md');
+  await Git2Bridge.commit(
+    repoPath: initPath,
+    message: 'Initial import',
+    authorName: 'Dart Test',
+    authorEmail: 'dart@example.com',
+  );
+  final initHead = await Git2Bridge.getHeadInfo(initPath);
+  check(
+    initHead?.branch == 'main',
+    "first commit on a gb_init'd repo lands on branch main",
+  );
+
   print('\n${failures == 0 ? "ALL PASS" : "SOME FAILED"} ($failures failures)');
   exit(failures == 0 ? 0 : 1);
 }

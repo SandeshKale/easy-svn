@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -12,6 +15,67 @@ import '../file_browser/file_browser_screen.dart';
 
 class RepoListScreen extends ConsumerWidget {
   const RepoListScreen({super.key});
+
+  Future<void> _showAddRepoSheet(BuildContext context, WidgetRef ref) async {
+    final choice = await showModalBottomSheet<_AddRepoChoice>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.download),
+              title: const Text('Clone from GitHub'),
+              onTap: () =>
+                  Navigator.of(context).pop(_AddRepoChoice.cloneFromGitHub),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_zip_outlined),
+              title: const Text('Import ZIP'),
+              subtitle: const Text('Open a repo snapshot with no clone'),
+              onTap: () =>
+                  Navigator.of(context).pop(_AddRepoChoice.importZip),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted || choice == null) return;
+
+    switch (choice) {
+      case _AddRepoChoice.cloneFromGitHub:
+        unawaited(
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const CloneRepoScreen()),
+          ),
+        );
+      case _AddRepoChoice.importZip:
+        await _importZip(context, ref);
+    }
+  }
+
+  Future<void> _importZip(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+    final zipPath = result?.files.single.path;
+    if (zipPath == null || !context.mounted) return;
+
+    final repo = await runWithLoadingDialog(
+      context: context,
+      title: 'Importing…',
+      operation: () =>
+          ref.read(repoManagerProvider).importZipAsNewRepo(zipPath),
+    );
+    if (repo == null || !context.mounted) return;
+
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => FileBrowserScreen(repo: repo)),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,13 +128,13 @@ class RepoListScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('Add repo'),
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const CloneRepoScreen()),
-        ),
+        onPressed: () => _showAddRepoSheet(context, ref),
       ),
     );
   }
 }
+
+enum _AddRepoChoice { cloneFromGitHub, importZip }
 
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
@@ -95,7 +159,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Tap "Add repo" to clone one from GitHub.',
+              'Tap "Add repo" to clone one from GitHub or import a zip.',
               textAlign: TextAlign.center,
             ),
           ],

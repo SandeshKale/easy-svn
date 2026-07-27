@@ -1,9 +1,13 @@
+import 'dart:async';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:git2_bridge/git2_bridge.dart';
 
 import '../../core/providers.dart';
 import '../../data/db/app_database.dart';
+import '../../shared/widgets/progress_dialog.dart';
 import '../staging_commit/staging_commit_screen.dart';
 
 /// Offline-browsable file tree for one repo (plan §4 W4/§7: "Offline
@@ -28,6 +32,12 @@ class FileBrowserScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(_title),
         actions: [
+          if (relPath.isEmpty)
+            IconButton(
+              icon: const Icon(Icons.folder_zip_outlined),
+              tooltip: 'Import ZIP into this repo',
+              onPressed: () => _importZip(context, ref),
+            ),
           IconButton(
             icon: const Icon(Icons.edit_note),
             tooltip: 'Stage & commit',
@@ -90,6 +100,33 @@ class FileBrowserScreen extends ConsumerWidget {
             },
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _importZip(BuildContext context, WidgetRef ref) async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['zip'],
+    );
+    final zipPath = result?.files.single.path;
+    if (zipPath == null || !context.mounted) return;
+
+    final imported = await runWithLoadingDialog(
+      context: context,
+      title: 'Reconciling…',
+      operation: () async {
+        await ref.read(repoManagerProvider).importZipIntoRepo(repo, zipPath);
+        return true;
+      },
+    );
+    if (imported == null || !context.mounted) return;
+
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StagingCommitScreen(repo: repo),
+        ),
       ),
     );
   }

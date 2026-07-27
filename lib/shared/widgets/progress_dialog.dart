@@ -75,3 +75,63 @@ Future<bool> runWithProgressDialog({
   }
   return true;
 }
+
+/// Runs [operation] (e.g. a zip import) behind a non-dismissible,
+/// indeterminate loading dialog, and maps [GitBridgeException] (and any
+/// other exception) to a friendly error dialog on failure. Returns the
+/// operation's result, or null if it failed.
+Future<T?> runWithLoadingDialog<T>({
+  required BuildContext context,
+  required String title,
+  required Future<T> Function() operation,
+}) async {
+  unawaited(
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 20),
+              Expanded(child: Text(title)),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
+  T? result;
+  String? errorMessage;
+  try {
+    result = await operation();
+  } on GitBridgeException catch (e) {
+    errorMessage = e.userMessage;
+  } on Exception catch (e) {
+    errorMessage = 'Unexpected error: $e';
+  }
+
+  if (!context.mounted) return result;
+  Navigator.of(context, rootNavigator: true).pop();
+
+  if (errorMessage != null) {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Something went wrong'),
+        content: Text(errorMessage!),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return null;
+  }
+  return result;
+}
