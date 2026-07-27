@@ -52,7 +52,7 @@ class _CloneRepoScreenState extends ConsumerState<CloneRepoScreen> {
                   if (v.isEmpty) return 'Enter a repository URL';
                   final uri = Uri.tryParse(v);
                   if (uri == null || !uri.isScheme('HTTPS')) {
-                    return 'Must be an HTTPS URL (SSH isn\'t supported yet)';
+                    return "Must be an HTTPS URL (SSH isn't supported yet)";
                   }
                   return null;
                 },

@@ -32,7 +32,8 @@ means concretely:
 |---|---|
 | C bridge logic (clone/pull/push/stage/commit/status/tree) | **Verified.** `scripts/native_smoke_test.sh` runs all of it against real libgit2 and a real `file://` remote. |
 | Dart FFI plumbing (struct marshaling, `Isolate.run`, cross-isolate progress via `NativeCallable.listener`) | **Verified.** `scripts/dart_ffi_smoke_test.sh` runs the actual `Git2Bridge` Dart API against a compiled `.so`. This caught and fixed two real bugs (a use-after-scope race on the progress struct, and a conflated error code for "unborn HEAD" vs. "repo not found") — see `native/README.md`. |
-| Flutter app code (`lib/`) | `flutter analyze` clean, `flutter test` passes, `dart format` applied. Not run in a simulator/emulator/device — none is available here. |
+| Flutter app code (`lib/`) | `flutter analyze` clean under `very_good_analysis` (strict-casts/strict-inference/strict-raw-types + ~150 lint rules), 45 unit/widget tests pass, `dart format` applied. Not run in a simulator/emulator/device — none is available here. |
+| `packages/git2_bridge` Dart layer | `flutter analyze` clean under the same lint set, 16 unit tests pass (error-code mapping, JSON model decoding). |
 | Android build (`packages/git2_bridge/android/`) | Structurally validated: the same `native/CMakeLists.txt`, invoked with `-DGB_USE_SYSTEM_LIBGIT2=ON`, configures and links cleanly here. The `FetchContent`-vendored-libgit2 branch and the actual `.apk` build are **untested** — no NDK in this container. |
 | iOS build (`packages/git2_bridge/ios/`) | **Not run.** `ios/Scripts/build_libgit2_xcframework.sh` needs a real Mac + Xcode; there is no way to test an iOS build anywhere else. |
 
@@ -48,6 +49,42 @@ work, not unfinished logic.
 flutter pub get
 dart run build_runner build --delete-conflicting-outputs   # Drift codegen
 ```
+
+### Linting
+
+`analysis_options.yaml` (app) and `packages/git2_bridge/analysis_options.yaml`
+(package) both build on `package:very_good_analysis` — strict-casts,
+strict-inference, strict-raw-types, and ~150 additional lint rules on top of
+`flutter_lints`. `public_member_api_docs` is on in `packages/git2_bridge`
+(it's a real API surface) and off in the app (internal screens/providers).
+A handful of purely stylistic rules (`always_use_package_imports`,
+`cascade_invocations`, `sort_pub_dependencies`) are turned off with inline
+rationale — everything else is enforced.
+
+```sh
+flutter analyze                              # app
+(cd packages/git2_bridge && flutter analyze) # package
+```
+
+### Tests
+
+```sh
+flutter test                              # app: 45 tests
+(cd packages/git2_bridge && flutter test) # package: 16 tests
+```
+
+Coverage: PKCE generation (RFC 7636 shape, uniqueness), the full OAuth2
+sign-in flow (happy path, CSRF state-mismatch rejection, GitHub error
+responses, non-200s, browser-launch failure — via an injected fake
+`http.Client`/deep-link stream/launcher, no real network or platform
+channels), `repoNameFromUrl`, the Drift schema against a real in-memory
+SQLite (`repos` CRUD, uniqueness constraint, reactive `watch()`, the
+`user_settings` singleton row), `GbErrorCode` mapping and `GbStatusEntry`/
+`GbTreeEntry`/`GbHeadInfo` JSON decoding, and widget tests for the clone
+screen (URL validation, sign-in banner states) and the staging/commit
+screen (stage/unstage, commit-disabled-when-nothing-staged, author-identity
+plumbing) — each isolated from native FFI and GitHub via a fake
+`RepoManager` rather than mocking `Git2Bridge` itself.
 
 ### Native bridge tests (no mobile SDK needed)
 

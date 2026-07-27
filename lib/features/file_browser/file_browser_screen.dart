@@ -11,7 +11,7 @@ import '../staging_commit/staging_commit_screen.dart';
 /// directly from the last-checked-out working tree via
 /// `gb_get_file_tree`, so no network access is ever needed here.
 class FileBrowserScreen extends ConsumerWidget {
-  const FileBrowserScreen({super.key, required this.repo, this.relPath = ''});
+  const FileBrowserScreen({required this.repo, super.key, this.relPath = ''});
 
   final Repo repo;
   final String relPath;
@@ -32,7 +32,7 @@ class FileBrowserScreen extends ConsumerWidget {
             icon: const Icon(Icons.edit_note),
             tooltip: 'Stage & commit',
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
+              MaterialPageRoute<void>(
                 builder: (_) => StagingCommitScreen(repo: repo),
               ),
             ),
@@ -78,7 +78,7 @@ class FileBrowserScreen extends ConsumerWidget {
                     : null,
                 onTap: entry.isDirectory
                     ? () => Navigator.of(context).push(
-                        MaterialPageRoute(
+                        MaterialPageRoute<void>(
                           builder: (_) => FileBrowserScreen(
                             repo: repo,
                             relPath: entry.path,

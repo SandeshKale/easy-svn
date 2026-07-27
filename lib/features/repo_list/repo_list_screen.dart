@@ -64,9 +64,9 @@ class RepoListScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add),
         label: const Text('Add repo'),
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const CloneRepoScreen())),
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const CloneRepoScreen()),
+        ),
       ),
     );
   }
@@ -116,7 +116,6 @@ class _RepoTile extends ConsumerWidget {
       key: ValueKey(repo.id),
       endActionPane: ActionPane(
         motion: const DrawerMotion(),
-        extentRatio: 0.5,
         children: [
           SlidableAction(
             icon: Icons.arrow_downward,
@@ -149,7 +148,9 @@ class _RepoTile extends ConsumerWidget {
               )
             : null,
         onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => FileBrowserScreen(repo: repo)),
+          MaterialPageRoute<void>(
+            builder: (_) => FileBrowserScreen(repo: repo),
+          ),
         ),
       ),
     );
@@ -192,7 +193,8 @@ class _RepoTile extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('Delete repository?'),
         content: Text(
-          'This removes "${repo.name}" and all local files. This can\'t be undone.',
+          'This removes "${repo.name}" and all local files. '
+          "This can't be undone.",
         ),
         actions: [
           TextButton(

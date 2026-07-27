@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
@@ -29,7 +31,7 @@ class AuthError extends AuthState {
 class AuthController extends Notifier<AuthState> {
   @override
   AuthState build() {
-    _restoreExistingToken();
+    unawaited(_restoreExistingToken());
     return const AuthIdle();
   }
 

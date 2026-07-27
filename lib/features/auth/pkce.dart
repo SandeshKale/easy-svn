@@ -8,12 +8,6 @@ import 'package:crypto/crypto.dart';
 class PkcePair {
   PkcePair._(this.codeVerifier, this.codeChallenge);
 
-  final String codeVerifier;
-  final String codeChallenge;
-
-  static const _allowedChars =
-      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
-
   factory PkcePair.generate() {
     final random = Random.secure();
     final verifier = String.fromCharCodes(
@@ -27,6 +21,12 @@ class PkcePair {
     ).replaceAll('=', '');
     return PkcePair._(verifier, challenge);
   }
+
+  final String codeVerifier;
+  final String codeChallenge;
+
+  static const _allowedChars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
 }
 
 /// Cryptographically random `state` parameter, used to reject

@@ -31,7 +31,7 @@ String repoNameFromUrl(String url) {
 /// public method here is the single place a screen should call for a
 /// given operation — screens never call [Git2Bridge] directly.
 class RepoManager {
-  RepoManager(this._db);
+  RepoManager(AppDatabase db) : _db = db;
 
   final AppDatabase _db;
 
@@ -44,7 +44,7 @@ class RepoManager {
     GbProgressCallback? onProgress,
   }) async {
     final root = await reposRootDirectory();
-    var name = repoNameFromUrl(url);
+    final name = repoNameFromUrl(url);
     var localPath = p.join(root.path, name);
     var suffix = 1;
     while (Directory(localPath).existsSync()) {

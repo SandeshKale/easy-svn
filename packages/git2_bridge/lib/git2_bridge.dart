@@ -27,27 +27,35 @@ export 'src/progress.dart';
 
 /// One file-status entry from `gb_get_status` (see git_bridge.h).
 class GbStatusEntry {
+  /// Creates a status entry directly; prefer [GbStatusEntry.fromJson]
+  /// when decoding a `gb_get_status` response.
   const GbStatusEntry({
     required this.path,
     required this.status,
     required this.staged,
   });
 
+  /// Decodes one element of the JSON array `gb_get_status` returns.
   factory GbStatusEntry.fromJson(Map<String, dynamic> json) => GbStatusEntry(
     path: json['path'] as String,
     status: json['status'] as String,
     staged: json['staged'] as bool,
   );
 
+  /// Path relative to the repository root.
   final String path;
 
   /// One of: added, modified, deleted, renamed, typechange, conflicted.
   final String status;
+
+  /// Whether this change is currently in the index (staged).
   final bool staged;
 }
 
 /// One entry from `gb_get_file_tree` (see git_bridge.h).
 class GbTreeEntry {
+  /// Creates a tree entry directly; prefer [GbTreeEntry.fromJson] when
+  /// decoding a `gb_get_file_tree` response.
   const GbTreeEntry({
     required this.name,
     required this.path,
@@ -55,6 +63,7 @@ class GbTreeEntry {
     this.size,
   });
 
+  /// Decodes one element of the JSON array `gb_get_file_tree` returns.
   factory GbTreeEntry.fromJson(Map<String, dynamic> json) => GbTreeEntry(
     name: json['name'] as String,
     path: json['path'] as String,
@@ -62,28 +71,44 @@ class GbTreeEntry {
     size: json['size'] as int?,
   );
 
+  /// The entry's own name, e.g. `README.md` (not the full path).
   final String name;
+
+  /// Path relative to the repository root.
   final String path;
+
+  /// `true` for a subdirectory (a git tree), `false` for a file (a
+  /// git blob).
   final bool isDirectory;
+
+  /// File size in bytes; `null` for directories.
   final int? size;
 }
 
 /// Result of `gb_get_head_info`.
 class GbHeadInfo {
+  /// Creates a HEAD summary directly; prefer [GbHeadInfo.fromJson]
+  /// when decoding a `gb_get_head_info` response.
   const GbHeadInfo({
     required this.sha,
     required this.summary,
     required this.branch,
   });
 
+  /// Decodes the JSON object `gb_get_head_info` returns.
   factory GbHeadInfo.fromJson(Map<String, dynamic> json) => GbHeadInfo(
     sha: json['sha'] as String,
     summary: json['summary'] as String,
     branch: json['branch'] as String,
   );
 
+  /// Short commit SHA.
   final String sha;
+
+  /// First line of the commit message.
   final String summary;
+
+  /// Current branch name.
   final String branch;
 }
 
@@ -91,6 +116,9 @@ class GbHeadInfo {
 /// design — all state lives in the on-disk repository (and in Drift,
 /// one layer up); this class is just an isolate-safe FFI façade.
 abstract final class Git2Bridge {
+  /// Clones [url] into [path] (`gb_clone`). Pass [token] for HTTPS
+  /// auth against private repos; omit it for anonymous clones of
+  /// public ones. [shallow] performs a depth-1 clone (plan §5.3).
   static Future<void> clone({
     required String url,
     required String path,
@@ -120,6 +148,11 @@ abstract final class Git2Bridge {
     });
   });
 
+  /// Fetches `origin` and fast-forwards the current branch
+  /// (`gb_pull`). Throws [GitBridgeException] with
+  /// [GbErrorCode.nonFastForward] if the branches have diverged, or
+  /// [GbErrorCode.uncommittedChanges] if the working tree is dirty
+  /// (plan §5.4: fast-forward only).
   static Future<void> pull({
     required String path,
     String? token,
@@ -143,6 +176,9 @@ abstract final class Git2Bridge {
     });
   });
 
+  /// Pushes the current branch to its configured upstream
+  /// (`gb_push`). Throws [GitBridgeException] with
+  /// [GbErrorCode.noUpstream] if the branch has no upstream set.
   static Future<void> push({
     required String path,
     String? token,
@@ -166,6 +202,8 @@ abstract final class Git2Bridge {
     });
   });
 
+  /// Adds [filePath] (relative to the repo root) to the index
+  /// (`gb_stage`).
   static Future<void> stage({
     required String repoPath,
     required String filePath,
@@ -182,6 +220,8 @@ abstract final class Git2Bridge {
     }
   });
 
+  /// Removes [filePath] from the index, restoring the HEAD version of
+  /// the entry without touching the working tree (`gb_unstage`).
   static Future<void> unstage({
     required String repoPath,
     required String filePath,
@@ -198,6 +238,8 @@ abstract final class Git2Bridge {
     }
   });
 
+  /// Creates a commit from the current index on top of HEAD (or as
+  /// the first commit if the repo is empty) (`gb_commit`).
   static Future<void> commit({
     required String repoPath,
     required String message,
@@ -225,6 +267,8 @@ abstract final class Git2Bridge {
     }
   });
 
+  /// Returns the working tree / index status of the repo at
+  /// [repoPath] (`gb_get_status`).
   static Future<List<GbStatusEntry>> getStatus(String repoPath) =>
       Isolate.run(() {
         final bindings = loadGit2Bridge();
@@ -245,6 +289,8 @@ abstract final class Git2Bridge {
         }
       });
 
+  /// Lists the entries of [relPath] (relative to the repo root; `''`
+  /// for the root) as tracked in HEAD's tree (`gb_get_file_tree`).
   static Future<List<GbTreeEntry>> getFileTree({
     required String repoPath,
     String relPath = '',
@@ -273,6 +319,7 @@ abstract final class Git2Bridge {
     }
   });
 
+  /// Returns whether [path] is a git repository (`gb_is_repository`).
   static Future<bool> isRepository(String path) => Isolate.run(() {
     final bindings = loadGit2Bridge();
     final pathPtr = path.toNativeUtf8(allocator: calloc);
@@ -301,6 +348,9 @@ abstract final class Git2Bridge {
     }
   });
 
+  /// Returns the number of commits on the current branch not yet
+  /// present on its upstream; `0` if there is no upstream, or the
+  /// repo is up to date (`gb_get_unpushed_count`).
   static Future<int> getUnpushedCount(String repoPath) => Isolate.run(() {
     final bindings = loadGit2Bridge();
     final repoPtr = repoPath.toNativeUtf8(allocator: calloc);

@@ -1,4 +1,13 @@
+// This is a standalone diagnostic CLI script (run via
+// ../../scripts/dart_ffi_smoke_test.sh), not app/package library code —
+// console output and a terse positional-bool `check()` helper are the
+// point, not something to launder through a logging framework.
+// ignore_for_file: avoid_print, avoid_positional_boolean_parameters
+// ignore_for_file: prefer_const_declarations, no_adjacent_strings_in_list
+// ignore_for_file: unnecessary_lambdas, lines_longer_than_80_chars
+
 import 'dart:io';
+
 import 'package:git2_bridge/git2_bridge.dart';
 
 Future<void> main() async {

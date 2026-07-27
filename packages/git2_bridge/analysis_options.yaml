@@ -1,4 +1,19 @@
-include: package:flutter_lints/flutter.yaml
+# See ../../analysis_options.yaml for the rationale. public_member_api_docs
+# stays ON here (unlike the app) because this package's lib/ is a real API
+# surface consumed from lib/ one level up.
+include: package:very_good_analysis/analysis_options.yaml
 
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+linter:
+  rules:
+    always_use_package_imports: false
+    prefer_relative_imports: true
+    sort_pub_dependencies: false
+    cascade_invocations: false
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+  exclude:
+    - 'lib/src/git2_bridge_bindings_generated.dart'
