@@ -12,6 +12,9 @@ name: Build APK
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write  # needed to publish the "latest" release below
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -54,3 +57,21 @@ jobs:
           name: easy-svn-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      # Actions artifacts expire (90 days) and need repo auth to
+      # download via the API — no good for a public "Download" button
+      # on the landing page. A GitHub Release asset is a stable,
+      # unauthenticated URL. Reuses a single rolling "latest" tag so
+      # the landing page's link never changes.
+      - name: Publish APK to the "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: >-
+            Automatically published from
+            ${{ github.sha }} by the Build APK workflow.
+            Signed with the debug key — fine for sideloading, not a
+            Play Store release.
+          files: build/app/outputs/flutter-apk/app-release.apk
+          prerelease: true
