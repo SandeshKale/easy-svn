@@ -52,11 +52,16 @@ else()
   set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
   set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 
+  # mbedTLS 3.6.2 split its shared CMake/build-script helpers out into
+  # a "framework" submodule (shared with TF-PSA-Crypto); its top-level
+  # CMakeLists.txt fails to even configure without it. We don't need
+  # any of mbedTLS's *other* submodules (third-party test vectors,
+  # etc.), so fetch just this one rather than everything.
   FetchContent_Declare(
     mbedtls
     GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
     GIT_TAG ${MBEDTLS_VERSION}
-    GIT_SUBMODULES ""
+    GIT_SUBMODULES "framework"
   )
   FetchContent_MakeAvailable(mbedtls)
 
