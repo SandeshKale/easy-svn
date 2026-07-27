@@ -1,0 +1,55 @@
+name: easy_svn
+description: "Git client MVP — Clone, Pull, Push with GitHub OAuth2, powered by libgit2."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  intl: ^0.20.2
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Local database (repo metadata, settings)
+  drift: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.27
+  path: ^1.9.0
+
+  # Auth: OAuth2 PKCE + secure token storage + deep links
+  flutter_secure_storage: ^9.2.4
+  app_links: ^6.4.0
+  url_launcher: ^6.3.1
+  crypto: ^3.0.6
+  http: ^1.2.2
+
+  # File system
+  path_provider: ^2.1.5
+
+  # Network status
+  connectivity_plus: ^6.1.3
+
+  # Repo list swipe actions (plan §4 W10)
+  flutter_slidable: ^3.1.1
+
+  # FFI
+  ffi: ^2.1.3
+  git2_bridge:
+    path: packages/git2_bridge
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  build_runner: ^2.4.13
+  drift_dev: ^2.22.1
+
+flutter:
+  uses-material-design: true

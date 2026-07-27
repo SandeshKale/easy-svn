@@ -1,0 +1,30 @@
+name: git2_bridge
+description: >
+  FFI bindings to git_bridge.h (../../native/) — the flat C wrapper
+  around libgit2 used by the easy_svn app. Not published; consumed via
+  a path dependency from the app's pubspec.yaml.
+version: 0.0.1
+publish_to: 'none'
+
+environment:
+  sdk: ^3.12.2
+  flutter: '>=3.22.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.4
+
+dev_dependencies:
+  ffigen: ^20.1.1
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        ffiPlugin: true
+      ios:
+        ffiPlugin: true
