@@ -37,13 +37,33 @@ if(GB_USE_SYSTEM_LIBGIT2)
 else()
   include(FetchContent)
 
-  set(LIBGIT2_VERSION "v1.7.2" CACHE STRING "libgit2 tag to vendor")
+  # git_bridge is a SHARED library statically linking libgit2 + mbedTLS
+  # into itself, so every object in that chain must be position-
+  # independent. Android's NDK toolchain forces -fPIC project-wide
+  # regardless, but a plain Linux host build (this sandbox's
+  # verification path) defaults static libraries to non-PIC, which
+  # fails at final link with "relocation ... can not be used when
+  # making a shared object; recompile with -fPIC". Setting this before
+  # the FetchContent calls below applies it to their targets too.
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+  # v1.7.2 (the plan's originally-specified version) still #includes
+  # <mbedtls/config.h>, a header mbedTLS removed in 3.x — it only
+  # supports mbedTLS 2.x. v1.9.6 (latest as of this writing) dropped
+  # that include and builds cleanly against mbedTLS 3.6.2; verified
+  # locally by a full FetchContent build (see git log for this line).
+  set(LIBGIT2_VERSION "v1.9.6" CACHE STRING "libgit2 tag to vendor")
   set(MBEDTLS_VERSION "v3.6.2" CACHE STRING "mbedTLS tag to vendor")
 
   set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
   set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
   set(USE_SSH OFF CACHE BOOL "" FORCE)          # SSH auth is out of scope (plan §1 Scope Out)
   set(USE_HTTPS "mbedTLS" CACHE STRING "" FORCE)
+  # NTLM (Windows-domain proxy auth) needs mbedtls/md4.h, which
+  # mbedTLS doesn't build by default (MD4 is deprecated/insecure) —
+  # and we don't use NTLM at all: GitHub HTTPS auth is Basic
+  # (oauth2:token), not NTLM.
+  set(USE_NTLMCLIENT OFF CACHE BOOL "" FORCE)
   set(USE_BUNDLED_ZLIB ON CACHE BOOL "" FORCE)
   set(REGEX_BACKEND "builtin" CACHE STRING "" FORCE)
   set(THREADSAFE ON CACHE BOOL "" FORCE)
@@ -52,13 +72,32 @@ else()
   set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
   set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 
+  # mbedTLS 3.6.2 split its shared CMake/build-script helpers out into
+  # a "framework" submodule (shared with TF-PSA-Crypto); its top-level
+  # CMakeLists.txt fails to even configure without it. We don't need
+  # any of mbedTLS's *other* submodules (third-party test vectors,
+  # etc.), so fetch just this one rather than everything.
   FetchContent_Declare(
     mbedtls
     GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
     GIT_TAG ${MBEDTLS_VERSION}
-    GIT_SUBMODULES ""
+    GIT_SUBMODULES "framework"
   )
   FetchContent_MakeAvailable(mbedtls)
+
+  # libgit2's cmake/FindmbedTLS.cmake does a plain filesystem
+  # find_path()/find_library() — it has no idea the mbedtls/mbedx509/
+  # mbedcrypto CMake targets FetchContent just created even exist, and
+  # a filesystem search would fail anyway since those .a files don't
+  # exist until the *build* step runs, not at configure time. Pre-seed
+  # the cache variables it looks for with mbedTLS's own build-output
+  # layout (stable across versions: it mirrors the source tree's
+  # library/ subdirectory) so find_package(mbedTLS) short-circuits
+  # successfully instead of searching.
+  set(MBEDTLS_INCLUDE_DIR "${mbedtls_SOURCE_DIR}/include" CACHE PATH "" FORCE)
+  set(MBEDTLS_LIBRARY "${mbedtls_BINARY_DIR}/library/libmbedtls.a" CACHE FILEPATH "" FORCE)
+  set(MBEDX509_LIBRARY "${mbedtls_BINARY_DIR}/library/libmbedx509.a" CACHE FILEPATH "" FORCE)
+  set(MBEDCRYPTO_LIBRARY "${mbedtls_BINARY_DIR}/library/libmbedcrypto.a" CACHE FILEPATH "" FORCE)
 
   FetchContent_Declare(
     libgit2
@@ -67,7 +106,28 @@ else()
   )
   FetchContent_MakeAvailable(libgit2)
 
-  target_link_libraries(git_bridge PRIVATE git2)
+  # libgit2's own CMake target is named "libgit2package" — "git2" is
+  # only its *output filename* (see LIBGIT2_FILENAME in
+  # src/libgit2/CMakeLists.txt). target_link_libraries(... git2)
+  # "configures" fine either way, because CMake falls back to treating
+  # an unrecognized name as a raw linker flag (-lgit2) instead of
+  # erroring — but that means no include-directory propagation (hence
+  # the explicit include path below regardless: libgit2package's own
+  # target_include_directories call is PRIVATE, so it doesn't
+  # propagate the public header either way) and, worse, no guaranteed
+  # -L search path to the .a file's actual location. That silently
+  # "worked" building on a Linux host (ld apparently found it via
+  # search-path luck) but broke on Android: `ld.lld: error: unable to
+  # find library -lgit2`. Reference the real target instead.
+  target_include_directories(git_bridge PRIVATE ${libgit2_SOURCE_DIR}/include)
+  target_link_libraries(git_bridge PRIVATE libgit2package)
+  # libgit2 links mbedTLS via raw -L/-l flags (derived from the paths
+  # above), not a CMake target reference, so Ninja has no inherent
+  # build-order edge forcing mbedtls's .a files to exist before
+  # libgit2package links against them — add one explicitly. (Not
+  # needed for git_bridge -> libgit2package itself now that it's a
+  # real target reference; CMake infers that ordering automatically.)
+  add_dependencies(libgit2package mbedtls mbedx509 mbedcrypto)
 endif()
 
 if(ANDROID)

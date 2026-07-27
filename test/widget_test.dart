@@ -3,13 +3,12 @@
 // stubbed out via provider overrides (real plugin channels aren't
 // available in a plain `flutter test` run).
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:easy_svn/core/providers.dart';
 import 'package:easy_svn/features/auth/auth_controller.dart';
 import 'package:easy_svn/features/repo_list/repo_list_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 class _FakeAuthController extends AuthController {
   @override

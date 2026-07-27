@@ -1,0 +1,77 @@
+name: Build APK
+
+# Manually triggered — building an APK compiles libgit2 + mbedTLS from
+# source (native/CMakeLists.txt via FetchContent) on top of the usual
+# Flutter/Gradle build, which takes several minutes and isn't something
+# we want firing on every push. Trigger it from the Actions tab
+# ("Run workflow") whenever you want a fresh build.
+#
+# GitHub-hosted ubuntu-latest runners ship a full Android SDK + NDK and
+# unrestricted internet access, which is exactly what a local sandbox
+# without either can't provide — see README.md's verification table.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to publish the "latest" release below
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate Drift code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build APK
+        env:
+          GITHUB_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+        run: |
+          flutter build apk --release \
+            --dart-define=GITHUB_CLIENT_ID="$GITHUB_CLIENT_ID" \
+            --dart-define=GITHUB_CLIENT_SECRET="$GITHUB_CLIENT_SECRET"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: easy-svn-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      # Actions artifacts expire (90 days) and need repo auth to
+      # download via the API — no good for a public "Download" button
+      # on the landing page. A GitHub Release asset is a stable,
+      # unauthenticated URL. Reuses a single rolling "latest" tag so
+      # the landing page's link never changes.
+      - name: Publish APK to the "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: >-
+            Automatically published from
+            ${{ github.sha }} by the Build APK workflow.
+            Signed with the debug key — fine for sideloading, not a
+            Play Store release.
+          files: build/app/outputs/flutter-apk/app-release.apk
+          prerelease: true

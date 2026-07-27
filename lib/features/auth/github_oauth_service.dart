@@ -8,6 +8,10 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'pkce.dart';
 
+/// Signature of [launchUrl], extracted as a typedef purely so tests
+/// can substitute a fake without touching the real system browser.
+typedef UrlLauncher = Future<bool> Function(Uri url, {LaunchMode mode});
+
 const _secureStorageTokenKey = 'github_token';
 const _redirectUri = 'gitclient://oauth/callback';
 const _authorizeUrl = 'https://github.com/login/oauth/authorize';
@@ -44,24 +48,40 @@ class GitHubOAuthException implements Exception {
 /// Drives the full PKCE authorization-code flow (plan §9) and persists
 /// the resulting access token in flutter_secure_storage.
 class GitHubOAuthService {
+  /// [uriLinkStream] defaults to `AppLinks().uriLinkStream`; [launcher]
+  /// defaults to [launchUrl]. [clientId]/[clientSecret] default to
+  /// [GitHubOAuthConfig], which reads compile-time `--dart-define`
+  /// values — not set during `flutter test`, hence overridable here.
+  /// All are constructor-injectable purely for testing — `AppLinks`
+  /// itself is an unextendable singleton, so a real deep-link stream
+  /// can't be faked any other way.
   GitHubOAuthService({
     FlutterSecureStorage? secureStorage,
-    AppLinks? appLinks,
+    Stream<Uri>? uriLinkStream,
     http.Client? httpClient,
+    UrlLauncher? launcher,
+    String? clientId,
+    String? clientSecret,
   }) : _secureStorage = secureStorage ?? const FlutterSecureStorage(),
-       _appLinks = appLinks ?? AppLinks(),
-       _httpClient = httpClient ?? http.Client();
+       _uriLinkStream = uriLinkStream ?? AppLinks().uriLinkStream,
+       _httpClient = httpClient ?? http.Client(),
+       _launcher = launcher ?? launchUrl,
+       _clientId = clientId ?? GitHubOAuthConfig.clientId,
+       _clientSecret = clientSecret ?? GitHubOAuthConfig.clientSecret;
 
   final FlutterSecureStorage _secureStorage;
-  final AppLinks _appLinks;
+  final Stream<Uri> _uriLinkStream;
   final http.Client _httpClient;
+  final UrlLauncher _launcher;
+  final String _clientId;
+  final String _clientSecret;
 
   /// Launches the system browser for GitHub's consent screen, waits
   /// for the `gitclient://oauth/callback` deep link, exchanges the
   /// returned code for an access token, and stores it. Returns the
   /// access token.
   Future<String> signIn() async {
-    if (!GitHubOAuthConfig.isConfigured) {
+    if (_clientId.isEmpty || _clientSecret.isEmpty) {
       throw GitHubOAuthException(
         'GitHub OAuth is not configured. Pass --dart-define=GITHUB_CLIENT_ID '
         'and --dart-define=GITHUB_CLIENT_SECRET (see README.md).',
@@ -73,7 +93,7 @@ class GitHubOAuthService {
 
     final authorizeUri = Uri.parse(_authorizeUrl).replace(
       queryParameters: {
-        'client_id': GitHubOAuthConfig.clientId,
+        'client_id': _clientId,
         'redirect_uri': _redirectUri,
         'scope': 'repo',
         'state': state,
@@ -84,7 +104,7 @@ class GitHubOAuthService {
 
     final callbackFuture = _waitForCallback(expectedState: state);
 
-    final launched = await launchUrl(
+    final launched = await _launcher(
       authorizeUri,
       mode: LaunchMode.externalApplication,
     );
@@ -105,13 +125,13 @@ class GitHubOAuthService {
   Future<String> _waitForCallback({required String expectedState}) async {
     final completer = Completer<String>();
     late final StreamSubscription<Uri> sub;
-    sub = _appLinks.uriLinkStream.listen(
+    sub = _uriLinkStream.listen(
       (uri) {
         if (uri.scheme != 'gitclient' || uri.host != 'oauth') return;
         final params = uri.queryParameters;
         final error = params['error'];
         if (error != null) {
-          sub.cancel();
+          unawaited(sub.cancel());
           if (!completer.isCompleted) {
             completer.completeError(
               GitHubOAuthException(params['error_description'] ?? error),
@@ -122,7 +142,7 @@ class GitHubOAuthService {
         final returnedState = params['state'];
         final code = params['code'];
         if (returnedState != expectedState) {
-          sub.cancel();
+          unawaited(sub.cancel());
           if (!completer.isCompleted) {
             completer.completeError(
               GitHubOAuthException(
@@ -133,7 +153,7 @@ class GitHubOAuthService {
           return;
         }
         if (code == null) {
-          sub.cancel();
+          unawaited(sub.cancel());
           if (!completer.isCompleted) {
             completer.completeError(
               GitHubOAuthException('No authorization code in callback.'),
@@ -141,7 +161,7 @@ class GitHubOAuthService {
           }
           return;
         }
-        sub.cancel();
+        unawaited(sub.cancel());
         if (!completer.isCompleted) completer.complete(code);
       },
       onError: (Object e) {
@@ -161,8 +181,8 @@ class GitHubOAuthService {
         'grant_type': 'authorization_code',
         'code': code,
         'redirect_uri': _redirectUri,
-        'client_id': GitHubOAuthConfig.clientId,
-        'client_secret': GitHubOAuthConfig.clientSecret,
+        'client_id': _clientId,
+        'client_secret': _clientSecret,
         'code_verifier': codeVerifier,
       },
     );

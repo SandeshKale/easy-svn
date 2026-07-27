@@ -203,7 +203,13 @@ int gb_clone(const char* url, const char* path, const char* token, int shallow,
              gb_progress_cb on_progress, void* user_data) {
   gb_callback_ctx ctx = {token, on_progress, user_data};
 
-  git_clone_options opts = GIT_CLONE_OPTIONS_INIT;
+  git_clone_options opts;
+  // The static GIT_CLONE_OPTIONS_INIT macro has, in practice, failed
+  // to cascade-initialize the .version field of newly-added nested
+  // structs (e.g. git_proxy_options inside fetch_opts) across libgit2
+  // releases — git_clone_options_init() is the version-safe function
+  // form libgit2 itself recommends, and cascades correctly.
+  git_clone_options_init(&opts, GIT_CLONE_OPTIONS_VERSION);
   opts.fetch_opts.callbacks.credentials = credentials_cb;
   opts.fetch_opts.callbacks.transfer_progress = transfer_progress_cb;
   opts.fetch_opts.callbacks.payload = &ctx;
@@ -243,7 +249,8 @@ int gb_pull(const char* path, const char* token, gb_progress_cb on_progress,
   // Refuse to pull over a dirty working tree — MVP has no merge UX to
   // reconcile local edits with incoming changes.
   git_status_list* dirty_check = NULL;
-  git_status_options status_opts = GIT_STATUS_OPTIONS_INIT;
+  git_status_options status_opts;
+  git_status_options_init(&status_opts, GIT_STATUS_OPTIONS_VERSION);
   status_opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
   if (git_status_list_new(&dirty_check, repo, &status_opts) == 0) {
     size_t dirty_count = git_status_list_entrycount(dirty_check);
@@ -257,7 +264,8 @@ int gb_pull(const char* path, const char* token, gb_progress_cb on_progress,
   rc = git_remote_lookup(&remote, repo, "origin");
   if (rc != 0) { result = gb_map_git_error(rc); goto cleanup; }
 
-  git_fetch_options fetch_opts = GIT_FETCH_OPTIONS_INIT;
+  git_fetch_options fetch_opts;
+  git_fetch_options_init(&fetch_opts, GIT_FETCH_OPTIONS_VERSION);
   fetch_opts.callbacks.credentials = credentials_cb;
   fetch_opts.callbacks.transfer_progress = transfer_progress_cb;
   fetch_opts.callbacks.payload = &ctx;
@@ -296,7 +304,8 @@ int gb_pull(const char* path, const char* token, gb_progress_cb on_progress,
   rc = git_object_lookup(&target_obj, repo, target_oid, GIT_OBJECT_COMMIT);
   if (rc != 0) { result = gb_map_git_error(rc); goto cleanup; }
 
-  git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+  git_checkout_options checkout_opts;
+  git_checkout_options_init(&checkout_opts, GIT_CHECKOUT_OPTIONS_VERSION);
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_cb = checkout_progress_cb;
   checkout_opts.progress_payload = &ctx;
@@ -364,7 +373,8 @@ int gb_push(const char* path, const char* token, gb_progress_cb on_progress,
   char* refspecs_arr[1] = {refspec};
   git_strarray refspecs = {refspecs_arr, 1};
 
-  git_push_options push_opts = GIT_PUSH_OPTIONS_INIT;
+  git_push_options push_opts;
+  git_push_options_init(&push_opts, GIT_PUSH_OPTIONS_VERSION);
   push_opts.callbacks.credentials = credentials_cb;
   push_opts.callbacks.push_transfer_progress = push_transfer_progress_cb;
   push_opts.callbacks.payload = &ctx;
@@ -379,6 +389,23 @@ cleanup:
   if (head_ref) git_reference_free(head_ref);
   if (repo) git_repository_free(repo);
   return result;
+}
+
+// ---------------------------------------------------------------------
+// gb_init
+// ---------------------------------------------------------------------
+
+int gb_init(const char* path) {
+  if (gb_is_repository(path)) return GB_ERROR_EXISTS;
+
+  git_repository_init_options opts;
+  git_repository_init_options_init(&opts, GIT_REPOSITORY_INIT_OPTIONS_VERSION);
+  opts.initial_head = "main";
+
+  git_repository* repo = NULL;
+  int rc = git_repository_init_ext(&repo, path, &opts);
+  if (repo) git_repository_free(repo);
+  return gb_map_git_error(rc);
 }
 
 // ---------------------------------------------------------------------
@@ -503,7 +530,8 @@ int gb_get_status(const char* repo_path, char** json_output) {
   int rc = git_repository_open(&repo, repo_path);
   if (rc != 0) return gb_map_git_error(rc);
 
-  git_status_options opts = GIT_STATUS_OPTIONS_INIT;
+  git_status_options opts;
+  git_status_options_init(&opts, GIT_STATUS_OPTIONS_VERSION);
   opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
   opts.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED |
                GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS;

@@ -38,6 +38,11 @@ dependencies:
   # Repo list swipe actions (plan §4 W10)
   flutter_slidable: ^3.1.1
 
+  # Zip import: extracting a repo snapshot zip to disk, and picking a
+  # zip file from the OS file picker.
+  archive: ^4.0.9
+  file_picker: ^11.0.2
+
   # FFI
   ffi: ^2.1.3
   git2_bridge:
@@ -46,10 +51,20 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  very_good_analysis: ^10.3.0
 
   build_runner: ^2.4.13
   drift_dev: ^2.22.1
+
+# path_provider_android >=2.2.18 rewrote its Android implementation on
+# top of package:jni, whose android/build.gradle (still true as of jni
+# 1.0.1, the latest release) isn't compatible with the AGP 9.0.1 /
+# Kotlin 2.3.20 this project's `flutter create` template pinned —
+# Gradle fails evaluating the :jni subproject with "Could not find
+# method kotlin() ...". Pin back to the last pre-jni release until
+# upstream fixes it; see CI run 30238338344 for the original failure.
+dependency_overrides:
+  path_provider_android: 2.2.17
 
 flutter:
   uses-material-design: true

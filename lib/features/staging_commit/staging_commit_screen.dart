@@ -14,7 +14,7 @@ import '../../data/db/app_database.dart';
 /// editing") — this screen only reflects what `gb_get_status` already
 /// sees on disk; pull-to-refresh re-reads it after an external edit.
 class StagingCommitScreen extends ConsumerStatefulWidget {
-  const StagingCommitScreen({super.key, required this.repo});
+  const StagingCommitScreen({required this.repo, super.key});
 
   final Repo repo;
 
@@ -90,7 +90,7 @@ class _StagingCommitScreenState extends ConsumerState<StagingCommitScreen> {
                     entries: unstaged,
                     actionIcon: Icons.add,
                     actionTooltip: 'Stage',
-                    onAction: (path) => _stage(path),
+                    onAction: _stage,
                   ),
                 if (staged.isNotEmpty)
                   _StatusSection(
@@ -98,7 +98,7 @@ class _StagingCommitScreenState extends ConsumerState<StagingCommitScreen> {
                     entries: staged,
                     actionIcon: Icons.remove,
                     actionTooltip: 'Unstage',
-                    onAction: (path) => _unstage(path),
+                    onAction: _unstage,
                   ),
                 Padding(
                   padding: const EdgeInsets.all(16),
